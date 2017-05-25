@@ -3,17 +3,19 @@
 
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
+require 'spam/version'
 require 'rbconfig'
 
 Gem::Specification.new do |spec|
   spec.name          = 'SPAM'
-  spec.version       = '0.1.0'
+  spec.version       = SPAM::VERSION
   spec.authors       = ['Levi Smith']
   spec.email         = ['atat@hearst.com']
 
-  spec.summary       = 'SPAM (Smart Proxy Alb Manager) - CLI Tool to manage ALB Listener and Rules for Foreman Smart Proxy Setups'
+  spec.summary       = 'SPAM (Smart Proxy Alb Manager) - CLI Tool to manage ALB
+                        Listener and Rules for Foreman Smart Proxy Setups'
   spec.description   = ''
-  spec.homepage      = 'https://github.com/hearstat/spman'
+  spec.homepage      = 'https://github.com/hearstat/SPAM'
 
   spec.license       = 'MIT'
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }

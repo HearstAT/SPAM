@@ -11,6 +11,8 @@ module SPAM
   class SPAMCLI < Thor
     def initialize(*args)
       super
+      @region = ENV['AWS_REGION'] ? ENV['AWS_REGION'] : args[0]
+      @albclient = Aws::ElasticLoadBalancingV2::Client.new(region: @region)
     end
 
     desc 'target', 'target group'
