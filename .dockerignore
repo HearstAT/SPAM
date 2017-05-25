@@ -1,0 +1,11 @@
+# ignore any config files
+  ./config/*.yml
+  ./.bundle/
+  ./.vendor/bundle
+  ./.lib/bundler/man/
+  ./.bin
+  ./examples
+  ./.vscode
+  ./.github
+  ./Gemfile.lock
+  ./brain
