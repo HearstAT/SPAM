@@ -24,7 +24,7 @@ bundle install
 
 ```bash
 gem install bundler
-bundle install --binstubs --path vendor/bundle
+bundle install --path vendor/bundle
 ```
 
 ### Commands

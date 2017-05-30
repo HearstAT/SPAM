@@ -19,20 +19,21 @@ Gem::Specification.new do |spec|
 
   spec.license       = 'MIT'
   spec.files         = `git ls-files -z`.split("\x0").reject { |f| f.match(%r{^(test|spec|features)/}) }
-  spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
+  spec.executables << 'spam'
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'aws-sdk-elasticloadbalancingv2', '~> 1.0.0.rc6'
-  spec.add_dependency 'httparty'
-  spec.add_dependency 'thor', '~> 0.19.0'
+  spec.add_dependency 'aws-sdk-elasticloadbalancingv2'
+  spec.add_dependency 'aws-sdk-s3'
+  spec.add_dependency 'httparty', '~> 0.15'
+  spec.add_dependency 'thor', '~> 0.19'
 
-  spec.add_development_dependency 'codeclimate-test-reporter', '~> 1.0.0'
-  spec.add_development_dependency 'rake'
+  spec.add_development_dependency 'codeclimate-test-reporter', '~> 1'
+  spec.add_development_dependency 'rake', '~> 12'
   spec.add_development_dependency 'rspec', '~> 3.4'
-  spec.add_development_dependency 'rubocop'
+  spec.add_development_dependency 'rubocop', '~> 0.49.1'
   spec.add_development_dependency 'debase', '~>0.2.2.beta10'
   spec.add_development_dependency 'ruby-debug-ide', '~> 0.6.1.beta4'
-  spec.add_development_dependency 'yard'
-  spec.add_development_dependency 'simplecov'
+  spec.add_development_dependency 'yard', '~> 0.9.9'
+  spec.add_development_dependency 'simplecov', '~> 0.13'
 end

@@ -1,0 +1,22 @@
+# This is the configuration used to check the rubocop source code.
+
+AllCops:
+  Exclude:
+    - 'vendor/**/*'
+    - 'bin/**/*'
+    - 'spec/**/*'
+    - 'Rakefile'
+    - '*gemspec'
+  TargetRubyVersion: 2.0
+
+Metrics/AbcSize:
+  Max: 30
+
+Metrics/LineLength:
+  Max: 150
+
+Metrics/MethodLength:
+  Max: 40
+
+Metrics/ClassLength:
+  Max: 300
