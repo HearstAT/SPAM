@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require 'httparty'
 require 'thor'
 require 'pp'
@@ -61,36 +62,45 @@ module SPAM
         alb_register(target['target_groups']['target_group_arn'], targets)
         swarm_init if options[:swarm_leader]
         swarm_join if options[:swarm_join]
-        File.open("#{org_path}/#{options[:org]}_sp_config.yml", 'w') do |file|
+        File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'w') do |file|
           file.write target['target_groups']['target_group_arn'].to_yaml
         end
-        s3_sync
+        s3_sync if options[:aws_bucket]
       end
 
       desc 'delete', 'Deletes org ALB for smart proxy'
       def delete
         init
-        s3_sync
+        s3_sync if options[:aws_bucket]
+        load_org
       end
 
       desc 'add', 'Add EC2 to ALB Target (Optional: Docker Swarm Join)'
       def add
         init
-        s3_sync
+        s3_sync if options[:aws_bucket]
+        load_org
       end
 
       desc 'list', 'List managed orgs and Details'
       def list
         init
-        s3_sync
+        s3_sync if options[:aws_bucket]
+        load_org
       end
 
       private
 
       def init
         set_region
+        @org_path = options[:org_path] ? options[:org_path] : '~/.spam/orgs'
+        FileUtils.mkdir_p @org_path
         @alb = alb
         @s3 = s3
+      end
+
+      def load_org
+        # Load org yaml file into hash
       end
     end
   end
