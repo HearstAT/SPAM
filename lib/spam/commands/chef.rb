@@ -3,121 +3,94 @@
 require 'httparty'
 require 'thor'
 require 'pp'
+require 'docker'
+require 'docker-swarm-api'
+require 'aws-sdk-elasticloadbalancingv2'
+require 'aws-sdk-s3'
+require 'yaml'
 
 module SPAM
   module COMMANDS
     # Chef Commands
     class Chef < Thor
+      require_relative 'helpers/docker'
+      require_relative 'helpers/alb'
+      require_relative 'helpers/foreman'
       def initialize(*args)
         super
       end
 
       ## Required, either flag or set in ~/.spam/config.yml
-      class_option :org,              required: true, banner: 'CHEF_ORG - sets chef org'
-      class_option :port,             required: true, banner: 'PORT - sets port for org smart proxy group'
-      class_option :vpc,              required: true, banner: 'VPC_ID - sets VPC ID'
-      class_option :listener_arn,     required: true, banner: 'ARN - sets the listener arn for registered targets'
-      class_option :priority,         required: true, banner: 'REGION - Overrides any region currently set'
-      class_option :targets,          required: true, banner: 'i-dfaj93,i-fi9a3mio - Pass targets to register to ALB ground'
-      class_option :foreman_user,     required: true, banner: 'USER - Username for Foreman to Create Smart Proxy'
-      class_option :foreman_password, required: true, banner: 'PASSWORD - Password for Foreman to Create Smart Proxy'
-      class_option :proxy_url,        required: true, banner: 'http://proxy.domain.com/ - Base URL for Smart Proxy (org will be added automatically)'
+      class_option :org,              type: :string,  required: true, desc: 'CHEF_ORG - sets chef org'
+      class_option :port,             type: :numeric, required: true, desc: 'PORT - sets port for org smart proxy group'
+      class_option :vpc,              type: :string,  required: true, desc: 'VPC_ID - sets VPC ID'
+      class_option :listener_arn,     type: :string,  required: true, desc: 'ARN - sets the listener arn for registered targets'
+      class_option :priority,         type: :numeric, required: true, desc: 'NUM - Sets ALB Rule Priority'
+      class_option :targets,          type: :string,  required: true, desc: 'INSTANCE_ID(S) - Pass target(s) to register in ALB Target Group'
+      class_option :foreman_user,     type: :string,  required: true, desc: 'USER - Username for Foreman to Create Smart Proxy'
+      class_option :foreman_password, type: :string,  required: true, desc: 'PASSWORD - Password for Foreman to Create Smart Proxy'
+      class_option :proxy_url,        type: :string,  required: true, desc: 'URL - Base URL for Smart Proxy http://proxy.domain.com/'
 
       ## Optional
-      class_option :aws_region,       banner: 'REGION - Overrides any region currently set'
-      class_option :protocol,         banner: 'HTTP/HTTPS - Sets protocol for ALB Rule, default HTTP'
-      class_option :location_ids,     banner: 'LOCATION_IDS - If locations are enabled, provide location id(s) to assign smart proxy to'
-      class_option :organization_ids, banner: 'ORGANIZATION_IDS - If organizations are enabled, provide organization id(s) to assign smart proxy to'
+      class_option :verbose,          type: :boolean
+      class_option :swarm_init,       type: :boolean, desc: 'BOOLEAN - Create Swarm, only use on leader (Default: --no-swarm-init)'
+      class_option :swarm_ip,         type: :string,  desc: 'IP - Swarm Manager/Leader IP'
+      class_option :swarm_name,       type: :string,  desc: 'NAME - Name of the Swarm Service (Default: org-chef-proxy)'
+      class_option :swarm_join,       type: :boolean, desc: 'BOOLEAN - Add Current Instance to Swarm (Default --no-swarm-join)'
+      class_option :swarm_as,         type: :string,  desc: 'TYPE - Join swarm as Manager or Worker'
+      class_option :swarm_image,      type: :string,  desc: 'DOCKER IMAGE - Image to create smart proxies with (Default: hearstat/chef-smart-proxy)'
+      class_option :org_client,       type: :string,  desc: 'NAME - Org Client name that has Right on Chef Server'
+      class_option :org_path,         type: :string,  desc: 'PATH - Path to create org files and load pems from'
+      class_option :pem_path,         type: :string,  desc: 'PATH - Path to load pem files from (Default: Org Path)'
+      class_option :org_pem,          type: :string,  desc: 'PEM - PEM File that belongs to client'
+      class_option :chef_url,         type: :string,  desc: 'URL - Complete URL to Chef Server https://chef.domain.com'
+      class_option :group_name,       type: :string,  desc: 'NAME - Name of ALB Target Group (Default: org-foreman-chef-proxy)'
+      class_option :proxy_name,       type: :string,  desc: 'NAME - Name of Smart Proxy in Foreman (Default: org-chef-proxy)'
+      class_option :aws_region,       type: :string,  desc: 'REGION - Overrides any region currently set'
+      class_option :aws_bucket,       type: :string,  desc: 'BUCKET_NAME - Enter bucket to sync data to'
+      class_option :protocol,         type: :string,  desc: 'HTTP/HTTPS - Sets protocol for ALB Rule, default HTTP'
+      class_option :location_ids,     type: :string,  desc: 'LOCATION_IDS - Foreman Location ID(s) to assign smart proxy to'
+      class_option :organization_ids, type: :string,  desc: 'ORGANIZATION_IDS - Foreman Organization ID(s) to assign smart proxy to'
 
       desc 'create', 'Creates org ALB for smart proxy'
       def create
-        set_region
-        client
-        target = create_group
-        create_rule(target['target_groups']['target_group_arn'])
-        targets = []
-        options[:targets].each do |t|
-          targets.push "{id: #{t}}"
+        init
+        target = alb_create_group
+        alb_create_rule(target['target_groups']['target_group_arn'])
+        targets = options[:targets].split(',')
+        alb_register(target['target_groups']['target_group_arn'], targets)
+        swarm_init if options[:swarm_leader]
+        swarm_join if options[:swarm_join]
+        File.open("#{org_path}/#{options[:org]}_sp_config.yml", 'w') do |file|
+          file.write target['target_groups']['target_group_arn'].to_yaml
         end
-        register(target['target_groups']['target_group_arn'], targets)
+        s3_sync
       end
 
       desc 'delete', 'Deletes org ALB for smart proxy'
       def delete
-        set_region
-        client
-        @albclient
+        init
+        s3_sync
+      end
+
+      desc 'add', 'Add EC2 to ALB Target (Optional: Docker Swarm Join)'
+      def add
+        init
+        s3_sync
+      end
+
+      desc 'list', 'List managed orgs and Details'
+      def list
+        init
+        s3_sync
       end
 
       private
 
-      def set_region
-        @region = ENV['AWS_REGION'] if ENV['AWS_REGION']
-        @region = Aws.config[:region] if Aws.config[:region]
-        @region = options[:region] if options[:region]
-      end
-
-      def client
-        @albclient = Aws::ElasticLoadBalancingV2::Client.new(region: @region)
-      rescue Aws::Errors::MissingRegionError
-        puts '[WARNING] - Region not set! Please set a region via environment variable AWS_REGION, aws config, or --region=REGION'
-      end
-
-      def create_group
-        @albclient.create_target_group(
-          name: options[:name] ? options[:name] : "#{options[:org]}-foreman-chef-proxy",
-          port: options[:port],
-          protocol: options[:protocol] ? options[:protocol] : 'HTTP',
-          vpc_id: options[:vpc]
-        ).to_h
-      end
-
-      def create_rule(target)
-        @albclient.create_rule(
-          actions: [
-            {
-              target_group_arn: target,
-              type: 'forward'
-            }
-          ],
-          conditions: [
-            {
-              field: 'path-pattern',
-              values: [
-                "/#{options[:org]}*"
-              ]
-            }
-          ],
-          listener_arn: options[:listener_arn],
-          priority: options[:priority]
-        ).to_h
-      end
-
-      def register_targets(arn, targets)
-        @albclient.register_targets(
-          target_group_arn: arn,
-          targets: targets
-        )
-      end
-
-      def create_sp
-        auth = {
-          username: options[:foreman_user],
-          password: options[:foreman_password]
-        }
-
-        body = {
-          name: options[:name] ? options[:name] : "#{options[:org]}-chef-proxy",
-          url: options[:proxy_url]
-        }
-
-        body[:location_ids] = options[:location_ids].to_a if options[:location_ids]
-        body[:organization_ids] = options[:organization_ids].to_a if options[:organization_ids]
-        HTTParty.post(
-          "#{options[:foreman_url]}/api/smart_proxies",
-          body: body,
-          basic_auth: auth
-        )
+      def init
+        set_region
+        @alb = alb
+        @s3 = s3
       end
     end
   end

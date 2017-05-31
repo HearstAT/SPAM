@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'aws-sdk-s3'
   spec.add_dependency 'httparty', '~> 0.15'
   spec.add_dependency 'thor', '~> 0.19'
+  spec.add_dependency 'docker-swarm-api', '~> 1.2', '>= 1.2.5'
 
   spec.add_development_dependency 'codeclimate-test-reporter', '~> 1'
   spec.add_development_dependency 'rake', '~> 12'
