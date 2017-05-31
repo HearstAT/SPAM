@@ -1,10 +1,10 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 
 require 'thor'
 require 'spam/version'
 require 'aws-sdk-elasticloadbalancingv2'
 require 'aws-sdk-s3'
+require 'yaml'
 
 Dir["#{File.dirname(__FILE__)}/spam/commands/*.rb"].each { |item| load(item) }
 
@@ -23,6 +23,15 @@ module SPAM
     desc 'version', 'Get the version of the SPAM Tool'
     def version
       puts "SPAM version: #{SPAM::VERSION}"
+    end
+
+    private
+
+    def options
+      original_options = super
+      return original_options unless '~/.spam/config.yml'.exists?
+      defaults = YAML.load_file('~/.spam/config.yml') || {}
+      Thor::CoreExt::HashWithIndifferentAccess.new(defaults.merge(original_options))
     end
   end
 end
