@@ -55,7 +55,7 @@ SPAM Wraps the Docker API, AWS API, and Foreman API so it can act as the glue or
 1.  Docker Swarm
     -   Create a Swarm (Optional, can just Provide Swarm Manager IP for existing Swarm)
     -   Join a Swarm (Optional, can use docker cli instead)
-2.  Creates Docker Service using (Optional, can just provide port for org container)[Dockerized Foreman Chef Smart Proxy](https://github.com/HearstAT/docker_foreman_smart_proxy_chef) for a specified org
+2.  Creates Docker Service using (Optional, can just provide port for org container) [Dockerized Foreman Chef Smart Proxy](https://github.com/HearstAT/docker_foreman_smart_proxy_chef) for a specified org
 3.  Creates Target Group for Chef Org to Route traffic to created Smart Proxy
 4.  Creates Rule to forward based on proxy_url + org path (e.g. `https://proxy.domain.com/org`)
 5.  Registers Target(s) (aka Instances) for ALB to round robin to
