@@ -12,16 +12,16 @@ module SPAM
         raise '[WARNING] - Region not set! Please set a region via environment variable AWS_REGION, aws config, SPAM config, or --region=REGION'
       end
 
-      def s3_sync
-        if options[:swarm_leader]
-          File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'rb') do |file|
-            @s3.put_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml", body: file)
-          end
-        else
-          File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'wb') do |file|
-            s3.get_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml") do |chunk|
-              file.write(chunk)
-            end
+      def s3_put
+        File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'rb') do |file|
+          @s3.put_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml", body: file)
+        end
+      end
+
+      def s3_get
+        File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'wb') do |file|
+          s3.get_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml") do |chunk|
+            file.write(chunk)
           end
         end
       end

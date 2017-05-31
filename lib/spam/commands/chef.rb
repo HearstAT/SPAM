@@ -60,32 +60,32 @@ module SPAM
         alb_create_rule(target['target_groups']['target_group_arn'])
         targets = options[:targets].split(',')
         alb_register(target['target_groups']['target_group_arn'], targets)
-        swarm_init if options[:swarm_leader]
+        swarm_init if options[:swarm_init]
         swarm_join if options[:swarm_join]
         File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'w') do |file|
           file.write target['target_groups']['target_group_arn'].to_yaml
         end
-        s3_sync if options[:aws_bucket]
+        s3_put if options[:aws_bucket]
       end
 
       desc 'delete', 'Deletes org ALB for smart proxy'
       def delete
         init
-        s3_sync if options[:aws_bucket]
+        s3_get if options[:aws_bucket]
         load_org
       end
 
       desc 'add', 'Add EC2 to ALB Target (Optional: Docker Swarm Join)'
       def add
         init
-        s3_sync if options[:aws_bucket]
+        s3_get if options[:aws_bucket]
         load_org
       end
 
       desc 'list', 'List managed orgs and Details'
       def list
         init
-        s3_sync if options[:aws_bucket]
+        s3_get if options[:aws_bucket]
         load_org
       end
 
