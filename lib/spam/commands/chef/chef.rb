@@ -3,12 +3,12 @@
 require 'fileutils'
 require 'httparty'
 require 'thor'
-require 'pp'
 require 'docker'
 require 'docker-swarm-api'
 require 'aws-sdk-elasticloadbalancingv2'
 require 'aws-sdk-s3'
 require 'yaml'
+require 'socket'
 
 module SPAM
   module COMMANDS
@@ -33,12 +33,14 @@ module SPAM
       class_option :proxy_url,        type: :string,  required: true, desc: 'URL - Base URL for Smart Proxy http://proxy.domain.com/'
 
       ## Optional
-      class_option :verbose,          type: :boolean
+      class_option :verbose,          type: :boolean, desc: 'Run with verbose output'
       class_option :swarm_init,       type: :boolean, desc: 'BOOLEAN - Create Swarm, only use on leader (Default: --no-swarm-init)'
       class_option :swarm_ip,         type: :string,  desc: 'IP - Swarm Manager/Leader IP'
+      class_option :node_ip,          type: :string,  desc: 'IP - Node Advertise IP for Swarm (Default: local IPv4)'
       class_option :swarm_name,       type: :string,  desc: 'NAME - Name of the Swarm Service (Default: org-chef-proxy)'
-      class_option :swarm_join,       type: :boolean, desc: 'BOOLEAN - Add Current Instance to Swarm (Default --no-swarm-join)'
-      class_option :swarm_as,         type: :string,  desc: 'TYPE - Join swarm as Manager or Worker'
+      class_option :swarm_join,       type: :boolean, desc: 'BOOLEAN - Add Current Instance to Swarm (Default: --no-swarm-join)'
+      class_option :swarm_as,         type: :string,  desc: 'TYPE - Join swarm as Manager or Worker (Default: worker)'
+      class_option :swarm_scale,      type: :numeric, desc: 'NUM - Set number of proxies (containers) to run in swarm'
       class_option :swarm_image,      type: :string,  desc: 'DOCKER IMAGE - Image to create smart proxies with (Default: hearstat/chef-smart-proxy)'
       class_option :org_client,       type: :string,  desc: 'NAME - Org Client name that has Right on Chef Server'
       class_option :org_path,         type: :string,  desc: 'PATH - Path to create org files and load pems from'
@@ -56,15 +58,14 @@ module SPAM
       desc 'create', 'Creates org ALB for smart proxy'
       def create
         init
-        target = alb_create_group
-        alb_create_rule(target['target_groups']['target_group_arn'])
+        @albgroup = alb_create_group
+        alb_create_rule(@albgroup['target_groups']['target_group_arn'])
         targets = options[:targets].split(',')
-        alb_register(target['target_groups']['target_group_arn'], targets)
+        alb_register(@albgroup['target_groups']['target_group_arn'], targets)
+        swarm_opts
         swarm_init if options[:swarm_init]
         swarm_join if options[:swarm_join]
-        File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'w') do |file|
-          file.write target['target_groups']['target_group_arn'].to_yaml
-        end
+        write_org
         s3_put if options[:aws_bucket]
       end
 
@@ -73,6 +74,7 @@ module SPAM
         init
         s3_get if options[:aws_bucket]
         load_org
+        swarm_opts
       end
 
       desc 'add', 'Add EC2 to ALB Target (Optional: Docker Swarm Join)'
@@ -80,6 +82,7 @@ module SPAM
         init
         s3_get if options[:aws_bucket]
         load_org
+        swarm_opts
       end
 
       desc 'list', 'List managed orgs and Details'
@@ -96,11 +99,20 @@ module SPAM
         @org_path = options[:org_path] ? options[:org_path] : '~/.spam/orgs'
         FileUtils.mkdir_p @org_path
         @alb = alb
-        @s3 = s3
+        @s3 = s3 if options[:aws_bucket]
+      end
+
+      def write_org
+        org_file = YAML.load_file("#{@org_path}/#{options[:org]}_sp_config.yml")
+        org_file['alb']['target_group_arn'] = @albgroup['target_groups']['target_group_arn']
+        org_file['swarm']['ip'] = @swarm_ip
+        org_file['swarm']['manager_token'] = @swarm.manager_join_token
+        org_file['swarm']['worker_token'] = @swarm.worker_join_token
+        File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'w') { |f| f.write org_file.to_yaml }
       end
 
       def load_org
-        # Load org yaml file into hash
+        @org_config = YAML.load_file("#{@org_path}/#{options[:org]}_sp_config.yml")
       end
     end
   end
