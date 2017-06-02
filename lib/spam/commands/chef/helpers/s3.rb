@@ -13,6 +13,7 @@ module SPAM
       end
 
       def s3_put
+        # TODO: Find out how to sync org pems to S3 or maybe just mount a s3 bucket?
         File.open("#{@org_path}/#{options[:org]}_sp_config.yml", 'rb') do |file|
           @s3.put_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml", body: file)
         end
@@ -28,7 +29,7 @@ module SPAM
 
       def s3_delete
         @s3.delete_object(bucket: options[:aws_bucket], key: "#{options[:org]}_sp_config.yml")
-        @s3.delete_object(bucket: options[:aws_bucket], key: options[:org_pem]) if @org[:docker_managed]
+        @s3.delete_object(bucket: options[:aws_bucket], key: options[:org_pem]) if @org['swarm']['managed']
       end
     end
   end

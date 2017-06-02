@@ -6,14 +6,6 @@ module SPAM
     class Chef
       private
 
-      def swarm_opts
-        @image = options[:swarm_image] ? options[:swarm_image] : 'hearstat/chef-smart-proxy'
-        @scale = options[:swarm_scale] ? options[:swarm_scale] : '1'
-        @swarm_ip = swarm_ip
-        @node_ip = options[:node_ip] ? options[:node_ip] : Socket.ip_address_list.detect(&:ipv4_private?).ip_address
-        @join_token = join_token unless options[:swarm_init]
-      end
-
       def swarm_ip
         if options[:swarm_init]
           Socket.ip_address_list.detect(&:ipv4_public?).ip_address if options[:swarm_public]
@@ -23,13 +15,15 @@ module SPAM
         end
       end
 
-      def join_token
-        options[:swarm_as] == 'manager' ? @org_config['swarm']['manager_token'] : @org_config['swarm']['worker_token']
+      def node_ip
+        Socket.ip_address_list.detect(&:ipv4_public?).ip_address if options[:node_public]
+        Socket.ip_address_list.detect(&:ipv4_private?).ip_address unless options[:node_public]
       end
 
       def create_swarm
         leader_connection = Docker::Swarm::Connection.new('unix:///var/run/docker.sock')
-        swarm_init_options = { 'ListenAddr' => '0.0.0.0:2377' }
+        swarm_init_options = { 'ListenAddr' => "#{swarm_ip}:2377" } unless options[:swarm_public]
+        swarm_init_options = { 'ListenAddr' => '0.0.0.0:2377' } if options[:swarm_public]
         @swarm = Docker::Swarm::Swarm.init(swarm_init_options, leader_connection)
         swarm_name = options[:swarm_name] ? options[:swarm_name] : 'org-chef-proxy'
         create_service(swarm_name)
@@ -41,7 +35,7 @@ module SPAM
           'TaskTemplate' => {
             'ContainerSpec' => {
               'Image' => @image,
-              'Mounts' => []
+              'Mounts' => [] # TODO: Find out how to bind mounts
             },
             'Env' => [
               "FOREMAN_URL=#{options[:foreman_url]}",
@@ -79,8 +73,18 @@ module SPAM
       end
 
       def add_to_swarm
-        swarm_options = { 'manager_ip' => @swarm_ip, 'node_ip' => @node_ip, 'JoinTokens' => { 'Master' => @join_token } }
+        swarm_options = {
+          'manager_ip' => @swarm_ip,
+          'node_ip' => @node_ip,
+          'JoinTokens' => {
+            'Master' => @org_config['swarm']['manager_token'],
+            'Worker' => @org_config['swarm']['worker_token']
+          }
+        }
         @swarm = Docker::Swarm::Swarm.new(swarm_options)
+        local_connection = Docker::Swarm::Connection.new('unix:///var/run/docker.sock')
+        @swarm.join_manager(local_connection) if options[:swarm_manager]
+        @swarm.join_worker(local_connection) unless options[:swarm_manager]
       end
     end
   end

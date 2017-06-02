@@ -91,7 +91,7 @@ Any [flag/option](#flags_options) can be configured via YAML for options that wo
 
 **NOTE**: Only recommended settings are show below, things like org, port, priority, tagets should be dynamic
 
-`~/.spam/config./yml`
+`~/.spam/config.yml`
 ```yaml
 ---
 vpc: VPC
@@ -144,6 +144,11 @@ Commands to interact with Docker, AWS ALB, and The Foreman
 ### Complete Setup
 
 ### Existing Docker Swarm
+
+### Projects Using SPAM
+
+-   [Dockerized Foreman Chef Smart Proxy](https://github.com/HearstAT/docker_foreman_smart_proxy_chef)
+		-   [Cloudformation Template](https://github.com/HearstAT/docker_foreman_smart_proxy_chef/blob/master/cfn_docker_swarm_autoscale.yml)
 
 ## Development
 
